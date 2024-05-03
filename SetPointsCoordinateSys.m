@@ -1,4 +1,4 @@
-function P = SetPointsCoordinateSys(T, xypxsz, zspacing, ispixelunits)
+function P = SetPointsCoordinateSys(Tbl, xypxsz, zspacing, ispixelunits)
 % SETPOINTSCOORDINATESYS will extract 3D point cloud data from a table and
 % then transform it to be an isotropic pointcloud in either pixel units or
 % microns. The units used for the isotropic coordinate transformation are
@@ -22,26 +22,46 @@ function P = SetPointsCoordinateSys(T, xypxsz, zspacing, ispixelunits)
         ispixelunits = true;
     end
 
+    hasZslices = any(contains(Tbl.Properties.VariableNames, 'Z'));
+    hasTpoints = any(contains(Tbl.Properties.VariableNames, 'T'));
+
     % Pointcloud data extracted from the table
-    X = T.X;
-    Y = T.Y;
-    Z = T.Z;
+    X = Tbl.X;
+    Y = Tbl.Y;
+    
+    % Has Z slices
+    if hasZslices
+        Z = Tbl.Z;
+    end
+
+    % Has timepoints/frames
+    if hasTpoints
+        T = Tbl.T;
+    end
 
     % Scaling z slices isotropically - units: in pixels
-    zfactor = (zspacing/xypxsz);
-    Z       = Z*zfactor;
+    if hasZslices
+        zfactor = (zspacing/xypxsz);
+        Z       = Z*zfactor;
+    end
     
     % Microscope/real coordinate space - units: in microns
     if ~ispixelunits
         X = X*xypxsz;
         Y = Y*xypxsz;
-        Z = Z*xypxsz;
+        if hasZslices
+            Z = Z*xypxsz;
+        end
     end
 
     % Arranges coordinates in columns so each column is a coord dimension
-    if iscolumn(X)
-        P = [X Y Z];
-    else
-        P = [X' Y' Z];
+    P = [X Y];
+    
+    if hasZslices
+        P = [P Z];
+    end
+
+    if hasTpoints
+        P = [P T];
     end
 end
