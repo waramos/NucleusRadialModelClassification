@@ -46,17 +46,10 @@ disp(msg)
 % Nucleus params
 nuc_d   = 12;      % nucleus diameter
 r       = nuc_d/2; % nucleus radius in microns
-CID     = 0.75;     % Confidence In Detection - 75%
-
-% Whether to use pixels or microns
-if ispixelunits
-    rspacing = 1;
-else
-    rspacing = xypxsz;
-end
+CID     = 0.9;     % Confidence In Detection - 90%
 
 % Cluster nuclei and finds their centroids w/ detection confidence thresh
-[centroids, corepts, negpts, discardpercentage] = ClusterNucleiCentroids(P, r, CID, rspacing);
+[centroids, corepts, negpts, discardpercentage] = ClusterNucleiCentroids(P, r, CID, xypxsz);
 
 
 % CL update 2
@@ -103,8 +96,8 @@ disp(msg)
 % threshold for voxel count; considering that there is a variety of sizes
 % (i.e. number of voxels) across the 
 
-Voxelscount1 = ROIInSpheres(centroids, V1, r);
-Voxelscount2 = ROIInSpheres(centroids, V2, r);
+Voxelcount1 = ROIInSpheres(centroids, V1, r);
+Voxcount2 = ROIInSpheres(centroids, V2, r);
 
 % CL update 5
 msg = 'Step 5: Voxels within distance found succesfully';
@@ -114,8 +107,8 @@ disp(msg)
 % We can consider how the two channels are related by analyzing their
 % covariance as well as how they soread in relation to each other by
 % computing the eigen vectors of the two channels by plotting them 
-figure
-CV = cov(Voxelscount1, Voxelscount2);
+
+CV = cov(VoxCount, VoxCount2);
 
 hHM = heatmap(CV, ...
       "Title", 'Voxel Count Covariance', ...
@@ -130,31 +123,25 @@ hHM.YDisplayLabels = {cv1name, cv2name};
 
 
 % PCA analysis
-[Mj, Mn] = MomentsOfInertia(Voxelscount1, Voxelscount2);
+[Mj, Mn] = MomentsOfInertia(VoxCount, VoxCount2);
 
-BothChCounts = [Voxelscount1, Voxelscount2];
+BothChCounts = [Voxcount1, Voxcount2];
 [pca_coeff, pca_score, pca_latent] = pca(BothChCounts);
 
-% Plotting the moments of inertia for the data (e.g. spread)
 figure
 plot(Mj(:,1), Mj(:,2))
 hold on
 
 plot(Mn(:,1), Mn(:,2))
 
-% 0 lines
 xline(0)
 yline(0)
 
-plot(Voxelscount1, Voxelscount2, '.r', 'MarkerSize', 12);
+plot(VoxCount, VoxCount2, '.r', 'MarkerSize', 12);
+
 axis equal
+ax = gca;
 
-
-xlabel([Ch1Name ' Voxel Counts']); 
-ylabel([Ch2Name ' Voxel Counts']);
-ttext = ['Voxels Within ' num2str(r) 'µm of Nucleus Centroid' newline ...
-         '(Data Spread with Moments of Inertia)'];
-title(ttext)
 
 % CL update 6
 msg = 'Step 6: Covariance and PCA analysis complete';
@@ -166,7 +153,10 @@ disp(msg)
 % minimum number of voxels that would need to be found within the radial
 % distance described above to count as a 
 
-% Grab CC's and find smallest object
+
+% NOTE: Consider ISOTROPIC case...here, it may be assumed and we should
+% ideally be resampling to stay isotropic...
+
 Ch1CC        = bwconncomp(V1);
 Ch1CCVoxList = [Ch1CC.PixelIdxList];
 Ch1CCVoxList = cellfun(@numel, Ch1CCVoxList);
@@ -177,18 +167,14 @@ Ch2CCVoxList = [Ch2CC.PixelIdxList];
 Ch2CCVoxList = cellfun(@numel, Ch2CCVoxList);
 Ch2VoxThresh = min(Ch2CCVoxList);
 
-% CL update 7
-msg = 'Step 7: Found smallest CCs per channel';
-disp(msg)
-
 %% Nucleus Classification
 % The simple classification applies the threshold for the total number of
 % voxel counts in the smallest object that was segmented for a given
 % channel. If a nucleus has more voxel counts than the threshold, it is
 % considered positive for that channel.
 
-Ch1Class = Voxelscount1 > Ch1VoxThresh;
-Ch2Class = Voxelscount2 > Ch2VoxThresh;
+Ch1Class = Voxcount1 > Ch1VoxThresh;
+Ch2Class = Voxcount2 > Ch2VoxThresh;
 
 % Total number of nuclei that contain sufficient counts
 Ch1Total = sum(Ch1Class);
@@ -202,11 +188,6 @@ Totals   = [Ch1Total Ch2Total];
 % However, this computation... at least at a glance, would be
 % computationally expensive.
 
-
-% CL update 8
-msg = 'Step 8: Nuclei classified succesfully';
-disp(msg)
-
 %% Simple bar plot
 % This bar plot is of course for a N of 1 (N = number of images) but it is
 % representative of several nuclei.
@@ -214,19 +195,20 @@ disp(msg)
 figure
 varnames = {Ch1Name, Ch2Name};
 bar(varnames, Totals)
-title('Number of Channel Positive Nuclei')
-xlabel('Channel (Protein)')
-ylabel('Counts (Number of Nuclei)')
 
 %% Positive Nuclei Volume Centroids
 
 % Ch 1 positive nuclei
 [r, ~]       = find(Ch1Class);
 positiveNuc1 = centroids(r, :);
+Ch1PosNuc    = regionprops3(positiveNuc1, 'Centroid');
+Ch1PosNuc    = [Ch1PosNuc.Centroid];
 
 % Ch 2 positive nuclei
 [r, ~]       = find(Ch2Class);
 positiveNuc2 = centroids(r, :);
+Ch2PosNuc    = regionprops3(positiveNuc2, 'Centroid');
+Ch2PosNuc    = [Ch2PosNuc.Centroid];
 
 %% Visualization
 
@@ -243,19 +225,17 @@ c1 = [0.3 0.3 1];
 p0 = plot3(centroids(:,1), centroids(:,2), centroids(:,3), 'Color', c0, 'Marker', '.', 'LineStyle', 'none');
 hold on
 
-axis equal
-
 % Plotting positive nuclei for...
 % Channel 1
-x    = positiveNuc1(:,1);
-y    = positiveNuc1(:,2);
-z    = positiveNuc1(:,3);
+x = Ch1PosNuc(:,1);
+y = Ch1PosNuc(:,2);
+z = Ch1PosNuc(:,3);
 p0_1 = plot3(x, y, z, 'Color', fliplr(c0), 'Marker', 'o', 'LineStyle', 'none');    % Ch1 positive
 
 % Channel 2
-x    = positiveNuc2(:,1);
-y    = positiveNuc2(:,2);
-z    = positiveNuc2(:,3);
+x = Ch2PosNuc(:,1);
+y = Ch2PosNuc(:,2);
+z = Ch2PosNuc(:,3);
 p0_2 = plot3(x, y, z, 'Color', fliplr(1-c0), 'Marker', 'o', 'LineStyle', 'none');  % Ch2 positive
 
 

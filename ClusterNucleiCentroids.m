@@ -3,15 +3,11 @@ function [centroids, corepts, negpts, discardpercentage] = ClusterNucleiCentroid
 % detections from an image volume. It is assumed detections were done in 2D
 % and the input is a pointcloud, P. Voxel spacing is used for determining
 % minimum number of points required for a valid cluster/nucleus, given that
-% the user has a minimum confidence requirement.
-
-    % unpacking voxel dims
-    dx = voxelsz(1);
-    dy = voxelsz(2);
-    dz = voxelsz(3);
+% the user has a minimum confidence requirement. The assumption is
+% ISOTROPIC resolution.
 
     % Min num. points / slices for a detection, given confidence thresh
-    rpx    = r/dz;            % radius in pixels
+    rpx    = r/voxelsz;       % radius in pixels
     minpts = ceil(2*rpx*CID); % minimum number of points
 
     % DBSCAN applied to points
@@ -25,7 +21,7 @@ function [centroids, corepts, negpts, discardpercentage] = ClusterNucleiCentroid
         discardpercentage = sum(negidx)/numel(idx);
     end
     
-    % Initializing centroids
+    % Initializing centroids array
     cidx        = idx(idx~=-1);        % only grab positive detections
     centroidIdx = unique(cidx);        % unique centroids
     numC        = numel(centroidIdx);  % number of centroids
@@ -33,7 +29,7 @@ function [centroids, corepts, negpts, discardpercentage] = ClusterNucleiCentroid
 
     for i = 1:numC
         % Centroid index value
-        ind            = cidx(i);
+        ind            = centroidIdx(i);
         [rowidx, ~]    = find(idx == ind);
         pt             = P(rowidx, :);
         centroids(i,:) = mean(pt, 1);

@@ -1,0 +1,29 @@
+
+VOXCOUNTTEST = ROIInSpheres(centroids, V1, r);
+
+was run with a 
+
+360 seconds:
+
+for i = 1: numel(Centroids)
+pt = centroids(1,:);
+D = statslib.gpu.pdist2(pt, P);
+end
+
+430 seconds:
+
+for i = 1: numel(Centroids)
+pt = centroids(1,:);
+D = pdist2(pt, P);
+end
+
+
+
+Other comparison is if we convert to a GPU array from the start:
+
+
+
+
+Alternatively, we could come up with a radial distribution function approach but this would be a memory intensive process... at a first glance...
+
+You would need to sum in some efficient manner.....

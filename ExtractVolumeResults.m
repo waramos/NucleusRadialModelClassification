@@ -5,7 +5,7 @@ function V = ExtractVolumeResults(fid)
     SegmentationResults = SegmentationResults.SegmentationInfo;
     data = SegmentationResults(1).Results(1);
 
-    % Checks on data
+    % Checks data format
     [c, z]            = size(data, [2 3]);
     isimagetype       = c > 2;
     isvolume          = z > 1;
