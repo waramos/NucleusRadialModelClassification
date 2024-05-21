@@ -1,0 +1,36 @@
+function J = BootstrapImageVolume(I, mrows, ncols, numpatches)
+% BOOSTRAPDATA will bootstrap a 3D image stack with some field of view
+% based on number of specified rows and columns. It will produce samples as
+% patches with the requested field of view and as many samples as are
+% requested.
+
+    % Minimum window sizing
+    mn = 64;
+
+    % Get image bounds
+    [M, N, Z] = size(I, [1 2 3]);
+
+    % In case percentage of dimension requested
+    if mrows < 1
+        mrows = mrows*M;
+    end
+
+    if ncols < 1
+        ncols = ncols*N;
+    end
+
+    % Ensure integer valued FOV sizing
+    mrows = round(mrows);
+    ncols = round(ncols);
+
+    % Bounds
+    mrows = max(mrows, mn);
+    ncols = max(ncols, mn);
+    newM  = M - mrows;
+    newN  = N - ncols;
+
+    % Sampling indices
+    idy = randi(newM, [1 numpatches]);
+    idx = randi(newN, [1 numpatches]);
+    idz = randi(Z, [1 numpatches]);
+end

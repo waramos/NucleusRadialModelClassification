@@ -8,6 +8,8 @@
 % First rough pass of Michael Palmer's data with nuclei and two different
 % channels.
 
+OverallTimer = tic;
+
 %% Loading in Nuclei pointclouds
 % This is data exported from the Segmentation GUI as a point cloud from
 % blob and/or puncta detections
@@ -81,6 +83,9 @@ disp(msg)
 % Resampling will take place to ensure that the segmented masks are also
 % isotropically spaced.
 
+% Timer
+t = tic;
+
 if ispixelunits
     dx = 1;
     dz = zspacing/xypxsz;
@@ -97,11 +102,20 @@ V2 = IsoResampleVolume(V2, dx, dz);
 msg = 'Step 4: Binary volumes resampled succesfully';
 disp(msg)
 
+% Timer
+T   = toc(t);
+msg = ['Time to resample binary volumes:' newline ...
+       num2str(T) ' seconds.'];
+disp(msg)
+
 %% Voxels inside Radius
 % Finds number of voxels that are within the radius, r, of the nuclear
 % centroids. Classification can then be done with some user selected
 % threshold for voxel count; considering that there is a variety of sizes
 % (i.e. number of voxels) across the 
+
+% Timer
+t = tic;
 
 Voxelscount1 = ROIInSpheres(centroids, V1, r);
 Voxelscount2 = ROIInSpheres(centroids, V2, r);
@@ -110,12 +124,24 @@ Voxelscount2 = ROIInSpheres(centroids, V2, r);
 msg = 'Step 5: Voxels within distance found succesfully';
 disp(msg)
 
+% Timer
+T   = toc(t);
+msg = ['Time to find voxels within distance r:' newline ...
+       num2str(T) ' seconds.'];
+disp(msg)
+
 %% Covariance and Dependency Analysis
 % We can consider how the two channels are related by analyzing their
 % covariance as well as how they soread in relation to each other by
 % computing the eigen vectors of the two channels by plotting them 
 figure
+
+
 CV = cov(Voxelscount1, Voxelscount2);
+
+STD1 = std(Voxelscount1(:));
+STD2 = std(Voxelscount2(:));
+CorrCoeff = CV./[STD1^2 STD1*STD2; STD1*STD2 STD2^2];
 
 hHM = heatmap(CV, ...
       "Title", 'Voxel Count Covariance', ...
@@ -187,13 +213,26 @@ disp(msg)
 % channel. If a nucleus has more voxel counts than the threshold, it is
 % considered positive for that channel.
 
+% Number of nuclei
+numNuclei = size(centroids, 1);
+
+% Positive classification per channel
 Ch1Class = Voxelscount1 > Ch1VoxThresh;
 Ch2Class = Voxelscount2 > Ch2VoxThresh;
 
+% Consider Nuclei that have both or none
+Ch1Only   = Ch1Class & ~BothChPos;
+Ch2Only   = Ch2Class & ~BothChPos;
+BothChPos = Ch1Class & Ch2Class;
+NoCh      = ~Ch1Class & ~Ch2Class;
+
 % Total number of nuclei that contain sufficient counts
-Ch1Total = sum(Ch1Class);
-Ch2Total = sum(Ch2Class);
-Totals   = [Ch1Total Ch2Total];
+Ch1Total  = sum(Ch1Only);
+Ch2Total  = sum(Ch2Only);
+BothTotal = sum(BothChPos);
+NoneTotal = sum(NoCh);
+Totals    = [NoneTotal; Ch1Total; Ch2Total; BothTotal];
+Totals    = Totals/numNuclei;
 
 % Alternatively, we could show this as a radial distriubution and draw on
 % inspiration from statistical mechanics.. The interpretation then would
@@ -207,16 +246,18 @@ Totals   = [Ch1Total Ch2Total];
 msg = 'Step 8: Nuclei classified succesfully';
 disp(msg)
 
-%% Simple bar plot
-% This bar plot is of course for a N of 1 (N = number of images) but it is
-% representative of several nuclei.
+%% Simple Stacked Bar Plots
+% Will show proportion of nuclei that fall in each category and then how
+% positive nuclei fall in different 
 
 figure
-varnames = {Ch1Name, Ch2Name};
-bar(varnames, Totals)
-title('Number of Channel Positive Nuclei')
-xlabel('Channel (Protein)')
-ylabel('Counts (Number of Nuclei)')
+varnames = {'None', Ch1Name, Ch2Name, 'Both'};
+bar(1, Totals, 'stacked')
+title('Nuclei')
+ylabel('% of Nuclei')
+legend(varnames)
+xticklabels('Control')
+
 
 %% Positive Nuclei Volume Centroids
 
@@ -229,6 +270,9 @@ positiveNuc1 = centroids(r, :);
 positiveNuc2 = centroids(r, :);
 
 %% Visualization
+
+% Plotting Timer
+t = tic;
 
 % Figure and axes
 [M, N, Z] = size(V1);
@@ -259,6 +303,12 @@ z    = positiveNuc2(:,3);
 p0_2 = plot3(x, y, z, 'Color', fliplr(1-c0), 'Marker', 'o', 'LineStyle', 'none');  % Ch2 positive
 
 
+% Timer
+T   = toc(t);
+msg = ['Time to plot:' newline ...
+       num2str(T) ' seconds.'];
+disp(msg)
+
 %% Alpha shape visualization
 % This visualization then shows the surface of the segmented regions
 
@@ -282,3 +332,9 @@ p0_2 = plot3(x, y, z, 'Color', fliplr(1-c0), 'Marker', 'o', 'LineStyle', 'none')
 % ax.XLim   = [1 N];
 % ax.ZLim   = [1 Z];
 
+
+% Timer
+T   = toc(OverallTimer);
+msg = ['Overall load and compute time:' newline ...
+       num2str(T) ' seconds.'];
+disp(msg)
