@@ -1,4 +1,4 @@
-function WriteBootstrappedStack(fid, fov, nsamples, intershuffle)
+function WriteBootstrappedStack(fid, fov, nsamples, intershuffle, infocusonly)
 % WRITEBOOTSTRAPPEDSTACK will write a bootstrapped version of an image
 % stack. If the user does not provide a filepath, the function will prompt
 % the user to select file(s). If multiple files are selected, they are
@@ -59,6 +59,7 @@ function WriteBootstrappedStack(fid, fov, nsamples, intershuffle)
          fext]     = fileparts(FID);
         I          = tiffreadVolume(FID);
 
+        % Update on progress in loading
         msg = ['File ' num2str(f) '/' num2str(numfiles) ' loaded.'];
         disp(msg)
 
@@ -77,7 +78,20 @@ function WriteBootstrappedStack(fid, fov, nsamples, intershuffle)
         end
 
         % Bootstrap data and assign into init. array
-        J(:,:,idz) = BootstrapImageVolume(I, mrows, ncols, nsamples);
+        if infocusonly
+            % User requests ONLY the data in focus
+            [focalidx, ~, ~, fprofile] = EstimateFocalPlaneIndices(I);
+            Z    = size(I, 3);
+            frac = (Z-focalidx)/Z;
+            msg  = ['Focal planes found: ' num2str(frac)...
+                    '% found to be in focus (' num2str(focalidx)...
+                    '/' num2str(Z) ' slices)'];
+            disp(msg)
+            J(:,:,idz) = BootstrapImageVolume(I, mrows, ncols, nsamples, focalidx, fprofile);
+        else
+            % All slices in volume are considered
+            J(:,:,idz) = BootstrapImageVolume(I, mrows, ncols, nsamples);
+        end
 
         % Writes separate stacks when unshuffled
         if ~intershuffle
