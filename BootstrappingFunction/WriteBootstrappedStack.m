@@ -10,15 +10,19 @@ function WriteBootstrappedStack(fid, fov, nsamples, intershuffle, infocusonly)
     % Window prompts user to select file(s)
     if nargin < 1 || isempty(fid)
         [fname, fpath] = uigetfile('*.tif','MultiSelect','on');
-        numfiles       = numel(fname);
 
-        % Either exists or adjusts file names as needed
+        % Exits, sets up multiple files, or grabs a single file
         if isnumeric(fname)
             return
-        elseif ~isnumeric(fname) && (numfiles > 1)
-            fid = cellfun(@(fn) fullfile(fpath, fn), fname, 'UniformOutput',false);
-        elseif ~isnumeric(fname) && (numfiles == 1)
-            fid = fullfile(fpath, fname);
+
+        elseif iscell(fname)
+            fid      = cellfun(@(fn) fullfile(fpath, fn), fname, 'UniformOutput',false);
+            numfiles = numel(fid);
+
+        elseif ischar(fname)
+            fid      = {fullfile(fpath, fname)};
+            numfiles = 1;
+
         end
     end
 
@@ -83,11 +87,12 @@ function WriteBootstrappedStack(fid, fov, nsamples, intershuffle, infocusonly)
             [focalidx, ~, ~, fprofile] = EstimateFocalPlaneIndices(I);
             Z    = size(I, 3);
             frac = (Z-focalidx)/Z;
-            msg  = ['Focal planes found: ' num2str(frac)...
+            frac = frac*100;
+            msg  = ['Focal planes found: ' num2str(frac, '%.2f')...
                     '% found to be in focus (' num2str(focalidx)...
                     '/' num2str(Z) ' slices)'];
             disp(msg)
-            J(:,:,idz) = BootstrapImageVolume(I, mrows, ncols, nsamples, focalidx, fprofile);
+            J(:,:,idz) = BootstrapImageVolume(I, mrows, ncols, nsamples, focalidx, fprofile, 1e5); % current resample limit is 1e5 attempts at high SNR
         else
             % All slices in volume are considered
             J(:,:,idz) = BootstrapImageVolume(I, mrows, ncols, nsamples);

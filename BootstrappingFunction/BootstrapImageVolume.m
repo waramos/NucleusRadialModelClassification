@@ -1,4 +1,4 @@
-function J = BootstrapImageVolume(I, mrows, ncols, numpatches, idz, fprofile)
+function J = BootstrapImageVolume(I, mrows, ncols, numpatches, idz, fprofile, resamplelimit)
 % BOOSTRAPIMAGEVOLUME bootstraps a 3D image stack with some field of view
 % based on number of specified rows and columns. It will produce samples as
 % patches with the requested field of view and as many samples as are
@@ -47,7 +47,9 @@ function J = BootstrapImageVolume(I, mrows, ncols, numpatches, idz, fprofile)
 
     % Maximum number of resamples allowed when user only wants patches
     % with content in focus
-    resamplelimit = 100;
+    if nargin < 6 || isempty(resamplelimit) 
+        resamplelimit = 1000;
+    end
 
     % Init shuffled image array
     ogclass = class(I);
@@ -60,7 +62,7 @@ function J = BootstrapImageVolume(I, mrows, ncols, numpatches, idz, fprofile)
         while ~goodpatch && resamplecount < resamplelimit
             % Resample count update
             resamplecount = resamplecount + 1;
-            if resamplecount > 1
+            if resamplecount > 1 && mod(resamplecount, 100) == 0
                 msg = ['Low SNR patch. Resampling...' ...
                        newline ...
                        'Resample Iteration: ' num2str(resamplecount) ...
@@ -87,7 +89,7 @@ function J = BootstrapImageVolume(I, mrows, ncols, numpatches, idz, fprofile)
             else
                 goodpatch = true;
             end
-    
+            
             % Assign patch to new stack
             if goodpatch
                 J(:,:,i) = impatch;
