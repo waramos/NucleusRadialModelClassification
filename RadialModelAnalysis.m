@@ -15,7 +15,7 @@ OverallTimer = tic;
 % blob and/or puncta detections
 
 % Location of data
-datafolder = 
+datafolder = 'D:\MichaelPalmer_Gillis\2024_04_26 - ATDC5 Cells';
 Nuc_file   = 'well1_2024_Feb_29_15.40.31.112_405_0.20502ms_2_Segmentation_FirstRoughPassInfo.mat';
 fid        = fullfile(datafolder, Nuc_file);
 
