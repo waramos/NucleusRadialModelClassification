@@ -67,7 +67,11 @@ classdef FWTiff < handle
             t=tic;
             
             if obj.transpose
-                I = pagetranspose(uint16(I)); % Transpose matrix axes to match image axes (may make a copy...)
+                if ~islogical(I)
+                    I = pagetranspose(uint16(I)); % Transpose matrix axes to match image axes (may make a copy...)
+                else
+                    I = pagetranspose(I);
+                end
             end
             
             switch obj.version
@@ -83,11 +87,18 @@ classdef FWTiff < handle
                 otherwise % Otherwise use selected mode
                     ver = obj.version;
             end
-            
-            szI(1) = size(I,1);
-            szI(2) = size(I,2);
-            szI(3) = size(I,3);
-            tags   = obj.getTags(ver,szI);      % Generate tag structure
+
+            % Bit depth specification
+            if isa(I, 'uint16')
+                bd = 16;
+            elseif isa(I, 'uint8')
+                bd = 8;
+            elseif islogical(I)
+                bd = 1;
+            end
+
+            szI    = size(I, [1 2 3]);
+            tags   = obj.getTags(ver,szI, bd);      % Generate tag structure
             
             obj.writeTiffHeader(ver);           % Write header data
             obj.writeWORD(I(:));                % Write image data
@@ -115,13 +126,13 @@ classdef FWTiff < handle
         end
         
         % Generate minimal essential tag structure
-        function tags = getTags(~,ver,sz)
+        function tags = getTags(~,ver,sz, bd)
             W = sz(1); L = sz(2); % Looks wrong, but actually no...
             
             % Fill tag structure (in order)
             tags.ImageWidth                = W;
             tags.ImageLength               = L;
-            tags.BitsPerSample             = 16;
+            tags.BitsPerSample             = bd;
             tags.Compression               = 1;  % None
             tags.PhotometricInterpretation = 1;  % Min is black
             switch ver
