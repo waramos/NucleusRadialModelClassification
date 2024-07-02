@@ -4,10 +4,12 @@ if isnumeric(fpath)
     disp('No files loaded.')
     return
 end
+
+% Appending the file directory to each file name
 fpaths          = cellfun(@(fn) fullfile(fpath, fn), fnames, 'UniformOutput', false);
 mdata           = imfinfo(fpaths{1});
 
-% Sizing
+% Sizing information
 M          = mdata(1).Height;
 N          = mdata(1).Width;
 Z          = numel(mdata);
@@ -41,10 +43,10 @@ disp(tmsg)
 
 %% Batch beam correct
 
-
-FW = FWTiff;
+% Fast Write Tiff object quickly writes new tif files
+FW     = FWTiff;
 labels = {'Controls', 'Day0', 'Day2'};
-V = zeros(size(AllVolumes, [1 2 3]), 'uint16');
+V      = zeros(size(AllVolumes, [1 2 3]), 'uint16');
 for i = 1:numfiles
     oldfid = fpaths{i};
     [fpath, fname, fext] = fileparts(oldfid);

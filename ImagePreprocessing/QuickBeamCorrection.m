@@ -1,4 +1,6 @@
 function V = QuickBeamCorrection(V)
+% QUICKBEAMCORRECTION will correct a stage scanning line confocal image by
+% taking the mean of the line profile along dimension x (dimension 2). 
 
     % Correcting the beam artifact at edges
     Stackmean1  = mean(V, [1 2]);

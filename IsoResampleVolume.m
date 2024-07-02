@@ -1,5 +1,6 @@
 function V2 = IsoResampleVolume(V, dxdy, dz)
-% ISORESAMPLEVOLUME will resample a volume to 
+% ISORESAMPLEVOLUME will resample a volume to be isotropic if it is not
+% already isotropic.
 
     % Throw error for isotropic cases
     if dxdy == dz
@@ -27,6 +28,18 @@ function V2 = IsoResampleVolume(V, dxdy, dz)
     [Xs, Ys, Zs] = meshgrid(x, y, z_px);  % sample points
     [Xq, Yq, Zq] = meshgrid(x, y, z_px2); % query points for new stacks
 
-    % Interpolated
-    V2 = interp3(Xs, Ys, Zs, V, Xq, Yq, Zq, 'nearest');
+    % Interpolation method
+    if islogical(V)
+        rsmethod = 'nearest';
+
+    elseif isa(V, 'uint16') || isa(V, 'uint8')
+        rsmethod = 'linear';
+
+    else
+        rsmethod = 'makima';
+
+    end
+
+    % Resampled image
+    V2 = interp3(Xs, Ys, Zs, V, Xq, Yq, Zq, rsmethod);
 end

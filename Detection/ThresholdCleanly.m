@@ -3,8 +3,8 @@ function Mask = ThresholdCleanly(I, thresh, r)
 
     % Disk kernel
     h = -r:r;
-    h = h+h';
     h = h.^2;
+    h = h+h';
     h = sqrt(h)<=r;
 
     % Morph open
@@ -12,4 +12,7 @@ function Mask = ThresholdCleanly(I, thresh, r)
 
     % Morph close
     Mask = imclose(Mask, h);
+
+    % Fill in holes
+    Mask = imfill(Mask, 'holes');
 end
