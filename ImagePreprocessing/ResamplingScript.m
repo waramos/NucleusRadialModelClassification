@@ -76,6 +76,7 @@ freemem = mem.MemAvailableAllArrays;
 fileInfo = dir(files2load{1});
 fileSize = fileInfo.bytes;
 
+% Will enable memory efficiency if user cannot handle the file
 if fileSize < freemem
     memoryeff = false;
 else
@@ -87,7 +88,7 @@ FW = FWTiff;
 
 % Load in the image stacks
 nfiles = numel(files2load); % Number of files to load in
-for i = 1:1
+for i = 1:nfiles
     % Load file
     fid    = files2load{i};
     I      = tiffreadVolume(fid);
@@ -103,6 +104,12 @@ for i = 1:1
     FW.Open(newfid)
     FW.Write(J)
     FW.Close
+
+    % Progress reporting
+    pct = i/nfiles;
+    pct = 100*pct;
+    msg = ['Percent of files interpolated: ' num2str(pct, '%.2f')];
+    disp(msg)
 end
 
 
