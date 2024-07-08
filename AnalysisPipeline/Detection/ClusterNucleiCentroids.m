@@ -1,14 +1,24 @@
-function [centroids, corepts, negpts, discardpercentage] = ClusterNucleiCentroids(P, r, CID, voxelsz)
+function [centroids, corepts, negpts, discardpercentage, idx] = ClusterNucleiCentroids(P, r, CID, voxelsz)
 % CLUSTERNUCLEICENTROIDS will use DBSCAN with a given radius, r to cluster
 % detections from an image volume. It is assumed detections were done in 2D
-% and the input is a pointcloud, P. Voxel spacing is used for determining
-% minimum number of points required for a valid cluster/nucleus, given that
-% the user has a minimum confidence requirement. The assumption is
-% ISOTROPIC resolution.
+% and the input is a pointcloud, P. If r is not in pixel units, the voxel
+% size can be given as well. 
 
     % Min num. points / slices for a detection, given confidence thresh
-    rpx    = r/voxelsz;       % radius in pixels
-    minpts = ceil(2*rpx*CID); % minimum number of points
+    if nargin<4 || ~isempty(voxelsz)
+        rpx     = r;
+    else
+        rpx     = r/voxelsz(3);          % radius in pixels
+        rfactor = voxelsz(3)/voxelsz(1); % in case of a lack of isotropic resolution
+        rpx     = rpx * rfactor;
+    end
+
+    % Can force min number of points per cluster
+    if nargin < 3 || isempty(CID)
+        minpts = 1;
+    else
+        minpts = ceil(rpx*CID); % minimum number of points
+    end
 
     % DBSCAN applied to points
     [idx, corepts] = dbscan(P, r, minpts);
