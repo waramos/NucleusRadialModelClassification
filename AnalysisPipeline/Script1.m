@@ -1,8 +1,14 @@
 
+%% Loading in data
+addpath 'D:\MichaelPalmer_Gillis\2024_04_26 - ATDC5 Cells\FullyPreprocessed\Results'
+load('SegmentedNucleiSegmentationInfo.mat', 'SegmentationResults')
+Segdata = SegInfo;
+
 % Segdata / SegmentationResults variable loaded in from GUI export
 
+%% Preprocessing
 % Pulling out the points from the GUI output
-% [P, fileInfo] = GetPointDetections(Segdata);
+[P, fileInfo] = GetPointDetections(Segdata);
 
 % Getting the NN distance
 Rstats   = GetNuclearDist(P);
@@ -51,15 +57,28 @@ Nuclei2 = struct('FilePath', [],...
                 'PercentExcluded', [],...
                 'Cluster', []);
 
-% dx/dz gives us a rescale factor for r
-rsfactor = 0.26/.5;
-r_dxdz   = r*rsfactor;
+% rescale factor for r - dx/dz gives us a 
+rsfactor = .5/.26;
+% r_dxdz   = r*rsfactor;
+r_dxdz   = r;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% NOTE:
+% Need to ensure scaling along z. Incorrect detections (over detection)
+% previously occured because points were treated as further away than they
+% really are, resulting in insufficient clustering/grouping together. We
+% should see increased compaction / a reduction in number of clusters
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Looping over files
 for f = 1:numfiles
     idx = P(:,4) == f;
     row = find(idx);
     pts = P(row, 1:3);
+
+    pts(:, 3) = pts(:, 3)/rsfactor;
 
     t = tic;
     [P3D,...
@@ -120,4 +139,34 @@ ax.CLim = [0 1500];
 ax.ZLim = [0 80];
 
 
-%% Making spheres
+%% Validation of Registration via Phase Correlation
+
+% I = tiffreadVolume('D:/MichaelPalmer_Gillis/2024_04_26 - ATDC5 Cells/IlluminationProfileCorrected/Control1_2024_Apr_26_11.02.45.279_405_0.20502ms_1_Well1BeamCorrected.tif');
+% J = tiffreadVolume('D:/MichaelPalmer_Gillis/2024_04_26 - ATDC5 Cells/IlluminationProfileCorrected/Control1_2024_Apr_26_11.08.47.026_405_0.20502ms_1_Well1_BeamCorrected.tif');
+% J2 = circshift(J, 8);
+
+% Comparing similarity between slices in the stacks
+numslices         = size(I, 3);
+priorsimilarity   = zeros(numslices, 1);
+postregsimilarity = zeros(numslices, 1);
+for i = 1:numslices
+    im1                  = I(:,:,i);
+    im2                  = J(:,:,i);
+    im3                  = J2(:,:,i);
+    priorsimilarity(i)   = ssim(im1, im2);
+    postregsimilarity(i) = ssim(im1, im3);
+    pct                  = 100*i/numslices;
+    msg                  = ['Percent done: ' num2str(pct, '%.2f')];
+    disp(msg)
+end
+
+%% Plotting Validation of Registration
+
+figure; plot(priorsimilarity); hold on; plot(postregsimilarity);
+ax = gca;
+ax.YLim = [0.95 1.05];
+yline(1)
+title('Similarity Between Stacks Across Z Improves Post Registration')
+ylabel('Image Simiarlity (SSIM)'); xlabel('Image Slice (z index)');
+legend({'Before Registration', 'Phase Correlation Registration', 'Perfect Similarity (SSIM = 1)'})
+ax.FontSize = 12;

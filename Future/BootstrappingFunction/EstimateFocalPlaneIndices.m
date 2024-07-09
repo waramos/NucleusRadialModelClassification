@@ -6,7 +6,7 @@ function [idz, d_df, df, fprofile] = EstimateFocalPlaneIndices(I)
 % greatest gradient increase occurs is approximated to be where content
 % first most noticeably comes into focus.
     
-%% Fluorescence change
+% Fluorescence change
     % Average signal profile across the stack
     fprofile = mean(I, [1 2]);
     fprofile = squeeze(fprofile);

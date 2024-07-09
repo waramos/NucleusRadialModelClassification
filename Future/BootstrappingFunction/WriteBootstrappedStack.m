@@ -1,11 +1,11 @@
-function WriteBootstrappedStack(fid, fov, nsamples, intershuffle, infocusonly)
+function Indices = WriteBootstrappedStack(fid, fov, nsamples, intershuffle, infocusonly)
 % WRITEBOOTSTRAPPEDSTACK will write a bootstrapped version of an image
 % stack. If the user does not provide a filepath, the function will prompt
 % the user to select file(s). If multiple files are selected, they are
 % shuffled together as the function will assume that they are different
 % conditions meant to be shuffled for a blind approach. The user can
 % alternatively toggle the "intershuffle" of the data off and randomly
-% sampled stacks will 
+% sampled stacks will instead by 
 
     % Window prompts user to select file(s)
     if nargin < 1 || isempty(fid)
@@ -13,27 +13,26 @@ function WriteBootstrappedStack(fid, fov, nsamples, intershuffle, infocusonly)
 
         % Exits, sets up multiple files, or grabs a single file
         if isnumeric(fname)
+            disp('No files selected')
             return
-
-        elseif iscell(fname)
-            fid      = cellfun(@(fn) fullfile(fpath, fn), fname, 'UniformOutput',false);
-            numfiles = numel(fid);
-
-        elseif ischar(fname)
-            fid      = {fullfile(fpath, fname)};
-            numfiles = 1;
-
+        else
+            fid = fname;
         end
     end
 
-    % Default patch size / Field of View is 512x512 pixels
-    if nargin < 2 || isempty(fov)
-        fov = [512 512];
+    % In case multiple files are selected or passed in as a cell array
+    if iscell(fid)
+        fid      = cellfun(@(fn) fullfile(fpath, fn), fid, 'UniformOutput',false);
+        numfiles = numel(fid);
+
+    elseif ischar(fid)
+        fid      = {fullfile(fpath, fid)};
+        numfiles = 1;
     end
 
-    % Patch sizing
-    mrows = fov(1);
-    ncols = fov(2);
+    if nargin < 2 || isempty(fov)
+        fov = [64 64 3];
+    end
 
     % Default number of samples is 100 patches
     if nargin < 3 || isempty(nsamples)
@@ -45,13 +44,19 @@ function WriteBootstrappedStack(fid, fov, nsamples, intershuffle, infocusonly)
         intershuffle = true;
     end
 
-    % Init array and tiff writer (written by Matthew Parent)
+    % Extract dims
+    mrows = fov(1);
+    ncols = fov(2);
+
+    % Intershuffle will shuffle files around so user does not know about
+    % conditions
     if intershuffle
         J  = zeros(mrows, ncols, nsamples*numfiles, 'uint16');
     else
         J  = zeros(mrows, ncols, nsamples, 'uint16');
     end
 
+    % Class written by Matthew Parent for fast tiff writing
     FW = FWTiff;
 
     % Loops through all files
@@ -72,7 +77,9 @@ function WriteBootstrappedStack(fid, fov, nsamples, intershuffle, infocusonly)
             J = cast(J, class(I));
         end
 
-        % If data is shuffled, it will be placed into the same stack
+        % If data is shuffled, it will be placed into the same stack and
+        % the stack is not written until the very end. Otherwise, each file
+        % results in a new stack being written
         if intershuffle
             z1       = (nsamples*(f-1))+1;
             z2       = (f*nsamples);
@@ -84,18 +91,23 @@ function WriteBootstrappedStack(fid, fov, nsamples, intershuffle, infocusonly)
         % Bootstrap data and assign into init. array
         if infocusonly
             % User requests ONLY the data in focus
-            [focalidx, ~, ~, fprofile] = EstimateFocalPlaneIndices(I);
-            Z    = size(I, 3);
-            frac = (Z-focalidx)/Z;
-            frac = frac*100;
-            msg  = ['Focal planes found: ' num2str(frac, '%.2f')...
-                    '% found to be in focus (' num2str(focalidx)...
-                    '/' num2str(Z) ' slices)'];
+            [focalidx, ...
+             ~, ...
+             ~, ...
+             fprofile] = EstimateFocalPlaneIndices(I);
+            Z        = size(I, 3);
+            focalidx = max(focalidx, [1 1]);
+            nz       = max(1, focalidx(2)-focalidx(1));
+            frac     = (Z-nz)/Z;
+            frac     = frac*100;
+            msg      = ['Focal planes found: ' num2str(frac, '%.2f')...
+                        '% found to be in focus (' num2str(nz)...
+                        '/' num2str(Z) ' slices)'];
             disp(msg)
-            J(:,:,idz) = BootstrapImageVolume(I, mrows, ncols, nsamples, focalidx, fprofile, 1e5); % current resample limit is 1e5 attempts at high SNR
+            [J(:,:,idz), Indices(f)] = BootstrapImageVolume(I, fov, nsamples, true, focalidx, fprofile, 1e3); % current resample limit is 1e3 attempts at high SNR
         else
             % All slices in volume are considered
-            J(:,:,idz) = BootstrapImageVolume(I, mrows, ncols, nsamples);
+            [J(:,:,idz), Indices(f)] = BootstrapImageVolume(I, fov, nsamples);
         end
 
         % Writes separate stacks when unshuffled
@@ -127,4 +139,31 @@ function WriteBootstrappedStack(fid, fov, nsamples, intershuffle, infocusonly)
         FW.Write(J)
         FW.Close
     end
+end
+
+
+function [idz, d_df, df, fprofile] = EstimateFocalPlaneIndices(I)
+% ESTIMATEFOCALPLANEINDICES will estimate which z slices from an image
+% volume are in focus. This is done by first computing the average signal
+% across each plane. Then, the gradient of the average fluorescence with
+% respect to z is computed. This is smoothed and the point at which the
+% greatest gradient increase occurs is approximated to be where content
+% first most noticeably comes into focus.
+    
+% Fluorescence change
+    % Average signal profile across the stack
+    fprofile = mean(I, [1 2]);
+    fprofile = squeeze(fprofile);
+    
+    % dF/dz
+    df = conv(fprofile, [1 0 -1]/2, 'same');
+    df = smooth(df(2:end-1));
+
+    % Approx inflection point where things begin to be in focus
+    d_df     = conv(df, [1 0 -1]/2, 'same');
+    [~, idz1] = max(d_df(2:end-1));
+    [~, idz2] = min(d_df(2:end-1));
+
+    % Start/End of focus - adjusted given clipping at ends of df and ddf
+    idz = [idz1 idz2] + 2;
 end
