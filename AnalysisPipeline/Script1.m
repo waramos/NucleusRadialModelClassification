@@ -2,7 +2,7 @@
 %% Loading in data
 addpath 'D:\MichaelPalmer_Gillis\2024_04_26 - ATDC5 Cells\FullyPreprocessed\Results'
 load('SegmentedNucleiSegmentationInfo.mat', 'SegmentationResults')
-Segdata = SegInfo;
+Segdata = SegmentationResults;
 
 % Segdata / SegmentationResults variable loaded in from GUI export
 
@@ -30,6 +30,9 @@ sqD      = avg_dDD2.^2;
 Dmin      = DD2(idx, :);
 r         = mean(Dmin)/2; % approximate radius in pixels for DBSCAN
 
+% Radius in microns:
+% r*.26
+
 %% Clustering Points
 
 % Confidence in detection suggests a percentage of the nucleus that needs
@@ -49,7 +52,7 @@ for i = 1:numfiles
 end
 
 % Information on detections after performing 3D clustering with DBSCAN
-Nuclei2 = struct('FilePath', [],...
+Nuclei = struct('FilePath', [],...
                 'OriginalPoints', [], ...
                 'Centroids', [],...
                 'CorePoints', [], ...
@@ -92,13 +95,13 @@ for f = 1:numfiles
     disp(msg)
 
     % Saving information in data struct
-    Nuclei2(f).FilePath        = fnames{f};
-    Nuclei2(f).OriginalPoints  = pts;
-    Nuclei2(f).Centroids       = P3D;
-    Nuclei2(f).CorePoints      = corepts;
-    Nuclei2(f).NegatedPoints   = negpts;
-    Nuclei2(f).PercentExcluded = discardpercentage;
-    Nuclei2(f).Cluster         = clustergroup;
+    Nuclei(f).FilePath        = fnames{f};
+    Nuclei(f).OriginalPoints  = pts;
+    Nuclei(f).Centroids       = P3D;
+    Nuclei(f).CorePoints      = corepts;
+    Nuclei(f).NegatedPoints   = negpts;
+    Nuclei(f).PercentExcluded = discardpercentage;
+    Nuclei(f).Cluster         = clustergroup;
 
     % Reporting in CL
     msg = ['Done with: ' num2str(f) '/' num2str(numfiles)];
@@ -107,10 +110,13 @@ end
 
 %% Appending results for visualization
 
+
+
+
 AllPoints    = [];
 AllPointsCat = [];
 for i = 1:numfiles
-    pts          = Nuclei2(i).Centroids;
+    pts          = Nuclei(i).Centroids;
     AllPoints    = vertcat(AllPoints, pts);
     y            = pts(:,2);
     x            = pts(:,1);
@@ -124,19 +130,45 @@ end
 
 %% Plotting results from 3D clustering
 
+
+% Extracting file names
+fnames   = {}; 
+numfiles = max(P(:,4));
+for i = 1:numfiles
+    idx       = ((i-1)*80)+1; 
+    [~, fn]   = fileparts(fileInfo{idx});  
+    fnames{i} = fileInfo{idx};
+end
+
+
 figure
 
-AllMIPs = horzcat(MIPs{:})';
-imagesc(AllMIPs)
-colormap gray
-axis equal
-hold on
-plot3(AllPointsCat(:,2), AllPointsCat(:,1), AllPointsCat(:,3), '.r')
+% Max projections and mean projections
+MIPs    = {};
+MeanIPS = {};
+for i = 1:9
+    I            = tiffreadVolume(fnames{i});
+    AllImages{i} = I;
+    MIPs{i}      = max(I, [], 3);
+    MeanIPS      = mean(I, 3);
+end
 
-% Adjusting contrast and lims
-ax      = gca; 
-ax.CLim = [0 1500];
-ax.ZLim = [0 80];
+%% Visualizing all points on images
+% if MIPs are computed
+figure
+if ~isempty(AllMIPs)
+    AllMIPs = horzcat(MIPs{:})';
+    imagesc(AllMIPs)
+    colormap gray
+    axis equal
+    hold on
+    plot3(AllPointsCat(:,2), AllPointsCat(:,1), AllPointsCat(:,3), '.r')
+    
+    % Adjusting contrast and lims
+    ax      = gca; 
+    ax.CLim = [0 1500];
+    ax.ZLim = [0 80];
+end
 
 
 %% Validation of Registration via Phase Correlation
@@ -146,27 +178,27 @@ ax.ZLim = [0 80];
 % J2 = circshift(J, 8);
 
 % Comparing similarity between slices in the stacks
-numslices         = size(I, 3);
-priorsimilarity   = zeros(numslices, 1);
-postregsimilarity = zeros(numslices, 1);
-for i = 1:numslices
-    im1                  = I(:,:,i);
-    im2                  = J(:,:,i);
-    im3                  = J2(:,:,i);
-    priorsimilarity(i)   = ssim(im1, im2);
-    postregsimilarity(i) = ssim(im1, im3);
-    pct                  = 100*i/numslices;
-    msg                  = ['Percent done: ' num2str(pct, '%.2f')];
-    disp(msg)
-end
+% numslices         = size(I, 3);
+% priorsimilarity   = zeros(numslices, 1);
+% postregsimilarity = zeros(numslices, 1);
+% for i = 1:numslices
+%     im1                  = I(:,:,i);
+%     im2                  = J(:,:,i);
+%     im3                  = J2(:,:,i);
+%     priorsimilarity(i)   = ssim(im1, im2);
+%     postregsimilarity(i) = ssim(im1, im3);
+%     pct                  = 100*i/numslices;
+%     msg                  = ['Percent done: ' num2str(pct, '%.2f')];
+%     disp(msg)
+% end
 
 %% Plotting Validation of Registration
 
-figure; plot(priorsimilarity); hold on; plot(postregsimilarity);
-ax = gca;
-ax.YLim = [0.95 1.05];
-yline(1)
-title('Similarity Between Stacks Across Z Improves Post Registration')
-ylabel('Image Simiarlity (SSIM)'); xlabel('Image Slice (z index)');
-legend({'Before Registration', 'Phase Correlation Registration', 'Perfect Similarity (SSIM = 1)'})
-ax.FontSize = 12;
+% figure; plot(priorsimilarity); hold on; plot(postregsimilarity);
+% ax = gca;
+% ax.YLim = [0.95 1.05];
+% yline(1)
+% title('Similarity Between Stacks Across Z Improves Post Registration')
+% ylabel('Image Simiarlity (SSIM)'); xlabel('Image Slice (z index)');
+% legend({'Before Registration', 'Phase Correlation Registration', 'Perfect Similarity (SSIM = 1)'})
+% ax.FontSize = 12;
