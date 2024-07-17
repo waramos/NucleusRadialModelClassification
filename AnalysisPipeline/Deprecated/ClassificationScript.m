@@ -52,8 +52,8 @@ z = [1 Zmn];
 %% Classification of Ch1
 
 % Perform analysis on images
-cropregion = [x' y' z'];
-Results_Ch1    = ClassifyExpression(Nuclei, Ch1, r, dx, dz, cropregion, []);
+cropregion  = [x' y' z'];
+Results_Ch1 = ClassifyExpression(Nuclei, Ch1, r, dx, dz, cropregion, []);
 
 %% Classification of Ch2
 

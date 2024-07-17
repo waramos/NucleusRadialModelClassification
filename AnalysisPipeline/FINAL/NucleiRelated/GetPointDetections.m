@@ -1,7 +1,7 @@
 function [P, fileInfo] = GetPointDetections(SegmentationResults)
 % GETPOINTSDETECTIONS will convert segmentation results into an MxD array
 % where M is the number of detections and D is the number of dimensions the
-% point detections have. 
+% point detections have (e.g. x, y, z coordinates typical for image stack). 
 
     % If input is a file path, the data is first loaded
     if (isstring(SegmentationResults) || ischar(SegmentationResults)) && isfile(SegmentationResults)
