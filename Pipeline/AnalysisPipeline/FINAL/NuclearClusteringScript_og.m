@@ -53,8 +53,9 @@ for i = 1:numfiles
     idx = ((i-1)*80)+1; 
     [~, fn] = fileparts(fileInfo{idx});  
     % fnames{i} = fileInfo{idx};
-    idx2 = regexp(fn, '_2024_');
-    idx2 = idx2-1;
+    cyr       = year(datetime);
+    idx2      = regexp(fn, ['_' num2str(cyr) '_']);
+    idx2      = idx2-1;
     fnames{i} = fn(1:idx2); 
 end
 

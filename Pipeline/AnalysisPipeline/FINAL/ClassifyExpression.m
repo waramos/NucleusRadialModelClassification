@@ -13,7 +13,7 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
         visnhoods = false;
     end
 
-    if nargin < 7 || isempty(I)
+    if nargin < 7 || isempty(I) 
         readfilesin = true;
     else
         readfilesin = false;
@@ -29,6 +29,9 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
     % Init results
     Results = [];
 
+    % Check if channel info is a struct or an array (mask stack)
+    isstack = ~isstruct(ChInfo) && isnumeric(ChInfo);
+
     % Number of files to analyze
     nFiles = numel(NInfo);
     for f = 1:nFiles
@@ -36,9 +39,9 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
         msg = ['Analyzing file: ' num2str(f) '/' num2str(nFiles)];
         disp(msg)
 
-        if readfilesin
+        if readfilesin && ~isstack
             % Reading in the original image file
-            I = tiffreadVolume(ChInfo(1,f).FilePath);
+            I   = tiffreadVolume(ChInfo(1,f).FilePath);
             msg = 'Loading Channel data in';
             disp(msg)
         end
@@ -55,14 +58,24 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
         PC       = NInfo(1, f).OriginalPoints;
         Clusters = NInfo(1, f).Cluster;
 
+        % Corrections and cropping as needed - puts PC in image coords
+        PC             = AdjustPointCloud(PC, sz, rsfactor);
+        [PC, Clusters] = CropPC(PC, Clusters, cropregion);
+
         % Binary image from nuclei detections
         Nuclei = Points2Cylinders(PC, r, sz);
         Nuclei = CropVol(Nuclei, cropregion);
 
         % Binary image from channel segmentation
-        Ch = cat(3, ChInfo(:, f).Results);
-        Ch = CropVol(Ch, cropregion);
+        if ~isstack
+            Ch = cat(3, ChInfo(:, f).Results);
+        else
+            Ch = ChInfo;
+            clear ChInfo
+        end
 
+        % Cropping as needed
+        Ch = CropVol(Ch, cropregion);
 
         % Verbose reporting
         msg = 'Determining protein expression threshold';
@@ -78,9 +91,7 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
                num2str(thresh) ' Voxels'];
         disp(msg)
 
-        % Corrections and cropping as needed
-        PC             = AdjustPointCloud(PC, sz, rsfactor);
-        [PC, Clusters] = CropPC(PC, Clusters, cropregion);
+        
 
         % Verbose reporting
         msg = 'Point cloud adjusted';
@@ -103,15 +114,17 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
         % Area of cell
         a = pi*(r^2);
 
+        % Counts number of clusters that are thrown out
         badcluster = 0;
 
-
+        % Visualizes neighorhoods if desired
         if visnhoods
-            ff = figure;
-            ax = axes(ff);
-        end
-        
+            ff     = figure;
+            ax     = axes(ff);
+            noplot = true;
+        end        
 
+        % Sizing information for bound checking the PC to Mask conversion 
         sz2 = size(Ch, [1 2 3]);
 
         for i = 1:nLabels
@@ -126,13 +139,13 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
                 continue
             end
 
+            % Grab points for local nhood
             [rows, ~] = find(idx);
+            pts       = PC(rows, :);
 
             % Volume is area * number of planes
-            vol = a*numel(rows);
-    
-            % Grab points for local nhood
-            pts = PC(rows, :);
+            numslices = range(pts(:,3));
+            vol       = a*numslices;
 
             % Pulling out local window for each nucleus
             [y, x, z]         = GetLocalCellNHood(pts, r, sz2);
@@ -165,18 +178,30 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
             msg = ['Percent nuclei done: ' num2str(pct, '%.2f')];
             disp(msg)
 
+            % Visualization of maximum projection every 10 iterations
             if mod(i, 10) == 0 && visnhoods
-                imagesc(max(Im, [], 3)); 
-                axis image; 
-                colormap bone
-                title(num2str(pct))
+                Maxp = max(Im, [], 3);
+
+                % Checks if plot was created before
+                if noplot
+                    iH = imagesc(ax, Maxp); 
+                    axis image; 
+                    colormap bone
+                    noplot = false;
+                else
+                    iH.CData = Maxp;
+                end
+
+                % Title update to the axes
+                t = ['Percent Done: ' num2str(pct, '%.2f')];
+                title(t)
                 drawnow
             end
             
         end
 
         % Consolidate results
-        Results{f} = Cluster;
+        Results = cat(1, Results, Cluster);
 
         msg = ['Done with file: ' num2str(f) '/' num2str(nFiles)];
         disp(msg)
@@ -293,12 +318,12 @@ function Nuclei = Points2Cylinders(pts, r, sz)
 
     % Round to nearest pixel - new var enables comparison
     PC_pix = round(pts);
-    y      = PC_pix(:,1);
-    x      = PC_pix(:,2);
+    x      = PC_pix(:,1);
+    y      = PC_pix(:,2);
     z      = PC_pix(:,3);
 
     % Convert point cloud to linear indices corresponding to pixels
-    idx = sub2ind(sz, x, y, z);
+    idx = sub2ind(sz, y, x, z);
 
     % Init nuclei array and set the true values
     Nuclei      = false(sz(1), sz(2), sz(3));
