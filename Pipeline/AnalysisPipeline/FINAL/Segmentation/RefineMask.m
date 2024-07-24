@@ -13,7 +13,6 @@ function Mask = RefineMask(Mask, Radius)
 
         % Morphological clean up operations
         Mask = imopen(Mask, h);
-        Mask = imclose(Mask, h);
         Mask = imdilate(Mask,[0 1 0;1 1 1;0 1 0]);
 
         disp('Morphological Filtering Done')

@@ -1,22 +1,40 @@
-function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, visnhoods, savenhoods)
+function Results = ClassifyExpression(NInfo, ChInfo, voxthresh, r, dx, dz, cropregion, I, visnhoods, savenhoods)
 % CLASSIFYEXPRESSION will classify cells as having a protein expressed or
 % not having it expressed. This is dependent on some distance value /
 % radius, r, that then suggests a cylindrical model out of consideration of
 % anistropy.
+%
+%
+% INPUTS:
+%
+% NInfo
+%
+% ChInfo
+%
+% 
+%
+%
+% OUTPUTS:
+%
+%
 
 
-    if nargin < 9 || isempty(savenhoods)
+    if nargin < 10 || isempty(savenhoods)
         savenhoods = false;
     end
 
-    if nargin < 8 || isempty(visnhoods)
+    if nargin < 9 || isempty(visnhoods)
         visnhoods = false;
     end
 
-    if nargin < 7 || isempty(I) 
+    if nargin < 8 || isempty(I) 
         readfilesin = true;
     else
         readfilesin = false;
+    end
+
+    if nargin < 3
+        voxthresh = [];
     end
 
     % isotropic scaling
@@ -30,7 +48,7 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
     Results = [];
 
     % Check if channel info is a struct or an array (mask stack)
-    isstack = ~isstruct(ChInfo) && isnumeric(ChInfo);
+    isstack = ~isstruct(ChInfo) && islogical(ChInfo);
 
     % Number of files to analyze
     nFiles = numel(NInfo);
@@ -83,14 +101,15 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
 
         % Minimum number of voxels needed in the overlap to count as
         % positive classification
-        thresh = DetermineMinVoxThresh(Ch);
+        if isempty(voxthresh)
+            voxthresh = DetermineMinVoxThresh(Ch);
+        end
 
         % Verbose reporting
         msg = ['Threshold for positive classification established as: ' ...
                newline...
-               num2str(thresh) ' Voxels'];
+               num2str(voxthresh) ' Voxels'];
         disp(msg)
-
         
 
         % Verbose reporting
@@ -163,7 +182,7 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
             % Overlapping region
             Overlap   = NucMask & ChMask;
             voxcount  = nnz(Overlap);
-            Cluster.Expression{i} = voxcount > thresh;
+            Cluster.Expression{i} = voxcount > voxthresh;
 
             % Fluorescence
             F                    = Im(Overlap);
@@ -174,9 +193,11 @@ function Results = ClassifyExpression(NInfo, ChInfo, r, dx, dz, cropregion, I, v
             Cluster.FPerVox{i}   = F/voxcount;
 
             % Verbose reporting
-            pct = 100*(i/nLabels);
-            msg = ['Percent nuclei done: ' num2str(pct, '%.2f')];
-            disp(msg)
+            if mod(i, 100) == 0
+                pct = 100*(i/nLabels);
+                msg = ['Percent nuclei done: ' num2str(pct, '%.2f')];
+                disp(msg)
+            end
 
             % Visualization of maximum projection every 10 iterations
             if mod(i, 10) == 0 && visnhoods
